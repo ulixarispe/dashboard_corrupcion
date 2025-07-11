@@ -1,0 +1,189 @@
+---
+title: "Dashboard: Corrupción y Votos en Elecciones Perú 2018"
+author: "Ulix Arispe"
+date: "`r Sys.Date()`"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    theme: readable
+    source_code: embed
+---
+
+# Introducción
+
+### Tema de Investigación
+
+Impacto de los escándalos de corrupción en el desempeño electoral de partidos políticos en elecciones regionales en Perú (2018)
+
+### Justificación del Tema
+
+La corrupción afecta la confianza en las instituciones. Analizar si los votantes penalizan la corrupción electoralmente permite entender el nivel de madurez cívica en contextos democráticos. En el plano práctico, Perú ha atravesado numerosos escándalos de corrupción entre 2011 y 2018, que involucraron tanto a partidos nacionales como a movimientos regionales. Evaluar si esos escándalos afectaron el voto en las elecciones regionales de 2018 ayuda a comprender mejor el comportamiento electoral y la eficacia del control ciudadano.Esta investigación busca explorar si las organizaciones políticas involucradas en corrupción obtienen menor apoyo electoral.
+
+### Variable dependiente  
+- Desempeño electoral (**votos_validos**): cantidad de votos válidos obtenidos por organización política
+
+### Variables independientes  
+1. Involucramientos en corrupción (involucrado_corrupcion)
+2. Antigüedad del partido (antiguedad)
+3. Tipo de organización (tipo_organizacion)
+4. Participación anterior en elecciones (participacion_previa)
+5. Presencia en múltiples regiones (presencia_multiregion)
+
+### Variable de control  
+1.	Nivel de urbanización de la región (nivel_urbanizacion)
+2.	Tamaño del padrón electoral (padron_electoral)
+3.	Nivel de educación promedio regional(educacion_promedio) 
+
+
+### Pregunta de Investigación
+
+¿Los partidos políticos y movimientos regionales involucrados en escándalos de corrupción obtuvieron peores resultados electorales en las elecciones regionales de 2018 en Perú?
+
+### Hipótesis
+
+Los partidos o movimientos regionales vinculados a escándalos de corrupción previos a 2018 recibieron una menor proporción de votos en las elecciones regionales de ese año, en comparación con aquellos que no estuvieron involucrados.
+
+### Metodología
+
+Se utilizaron técnicas de análisis descriptivo, regresión lineal, análisis factorial y clusterización, a partir de una base consolidada de datos públicos.
+
+## Limpieza de la base de datos
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readr)
+library(DT)
+library(corrr)
+library(cluster)
+library(factoextra)
+library(psych)
+library(GGally)
+library(caret)
+library(flexdashboard)
+```
+
+```{r cargar_datos}
+url <- "https://raw.githubusercontent.com/ulixarispe/corrupcion_votos_peru_2018/main/base_consolidada.csv"
+data <- read_csv(url)
+
+# Ver columnas
+glimpse(data)
+
+# Eliminar NAs y asegurarse de que las variables sean numéricas donde corresponde
+data <- data %>% 
+  drop_na() %>% 
+  mutate(
+    involucrado_corrupcion = as.numeric(involucrado_corrupcion),
+    antiguedad = as.numeric(antiguedad),
+    participacion_previa = as.numeric(participacion_previa),
+    presencia_multiregion = as.numeric(presencia_multiregion),
+    nivel_urbanizacion = as.numeric(nivel_urbanizacion),
+    padron_electoral = as.numeric(padron_electoral),
+    educacion_promedio = as.numeric(educacion_promedio),
+    votos_validos = as.numeric(votos_validos)
+  )
+```
+
+---
+
+# Análisis Descriptivo {.icon-chart-bar}
+
+## Distribución de votos válidos
+
+```{r hist-votos}
+hist(data$votos_validos, breaks = 30, col = "#2c7fb8", main = "Distribución de votos válidos", xlab = "Votos válidos")
+```
+
+## Tabla general
+
+```{r tabla}
+datatable(head(data))
+```
+
+## Estadísticas generales
+
+```{r resumen}
+summary(select(data, votos_validos, involucrado_corrupcion, antiguedad, participacion_previa, educacion_promedio))
+```
+
+---
+
+# Análisis Bivariado {.icon-line-chart}
+
+## Correlaciones con votos válidos
+
+```{r correlacion}
+corr_data <- data %>%
+  select(votos_validos, involucrado_corrupcion, antiguedad, participacion_previa, educacion_promedio, nivel_urbanizacion)
+
+cor_matrix <- correlate(corr_data)
+rplot(cor_matrix)
+```
+
+## Gráficos de dispersión
+
+```{r dispersión}
+ggpairs(corr_data)
+```
+
+---
+
+# Modelos de Regresión {.icon-calculator}
+
+## Modelo lineal simple
+
+```{r regresion-simple}
+modelo_simple <- lm(votos_validos ~ involucrado_corrupcion, data = data)
+summary(modelo_simple)
+```
+
+## Modelo múltiple
+
+```{r regresion-multiple}
+modelo_multiple <- lm(votos_validos ~ involucrado_corrupcion + antiguedad + participacion_previa + educacion_promedio + nivel_urbanizacion + padron_electoral, data = data)
+summary(modelo_multiple)
+```
+
+---
+
+# Análisis Factorial y Clúster {.icon-project-diagram}
+
+## Análisis factorial
+
+```{r factorial}
+fa_data <- data %>%
+  select(involucrado_corrupcion, antiguedad, participacion_previa, educacion_promedio, nivel_urbanizacion, padron_electoral)
+
+fa_result <- fa(fa_data, nfactors = 2, rotate = "varimax", fm = "ml")
+fa_result
+```
+
+## Análisis de Clúster
+
+```{r cluster}
+scaled_data <- scale(fa_data)
+
+set.seed(123)
+k_result <- kmeans(scaled_data, centers = 3)
+
+fviz_cluster(k_result, data = scaled_data)
+```
+
+---
+
+# Conclusiones y Bibliografía {.icon-book}
+
+## Conclusiones
+
+- Las organizaciones políticas involucradas en corrupción tienden a recibir menos votos.
+- El modelo múltiple mejora la predicción incluyendo factores como educación y urbanización.
+- El análisis factorial muestra agrupamientos temáticos entre variables organizacionales.
+- La clusterización permite identificar perfiles similares de organizaciones políticas.
+
+## Bibliografía
+
+- Jurado Nacional de Elecciones (2018)
+- INEI (2018)
+- Poder Judicial del Perú (2018)
+- R Documentation: `ggplot2`, `factoextra`, `psych`, `corrr`, `cluster`
